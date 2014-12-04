@@ -8,12 +8,16 @@ import (
 	"bytes"
 	"encoding/base32"
 	"encoding/gob"
+	"errors"
+	"net/http"
+	"strings"
+
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	riaken "github.com/riaken/riaken-core"
-	"net/http"
-	"strings"
 )
+
+var ErrNoDatabase = errors.New("no databases available")
 
 // Amount of time for cookies/redis keys to expire.
 var sessionExpire = 86400 * 30
@@ -106,6 +110,9 @@ func (s *RiakStore) save(session *sessions.Session) error {
 		return err
 	}
 	rs := s.Riaken.Session()
+	if rs == nil {
+		return ErrNoDatabase
+	}
 	defer rs.Release()
 	age := session.Options.MaxAge
 	if age == 0 {
@@ -121,6 +128,9 @@ func (s *RiakStore) save(session *sessions.Session) error {
 // returns true if there is session data in the DB.
 func (s *RiakStore) load(session *sessions.Session) (bool, error) {
 	rs := s.Riaken.Session()
+	if rs == nil {
+		return false, ErrNoDatabase
+	}
 	defer rs.Release()
 	b := rs.GetBucket(s.Bucket)
 	o := b.Object("session_" + session.ID)
@@ -138,6 +148,9 @@ func (s *RiakStore) load(session *sessions.Session) (bool, error) {
 // delete removes keys from riak if MaxAge<0
 func (s *RiakStore) delete(session *sessions.Session) error {
 	rs := s.Riaken.Session()
+	if rs == nil {
+		return ErrNoDatabase
+	}
 	defer rs.Release()
 	b := rs.GetBucket(s.Bucket)
 	o := b.Object("session_" + session.ID)
